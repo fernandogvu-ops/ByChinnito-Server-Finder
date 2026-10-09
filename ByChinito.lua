@@ -1,51 +1,42 @@
-
--- PRIVATE SERVER FINDER
--- by ByChinnito
+--// ByChinnito Private Server Finder
+--// Up to 10 pages / ~500 servers
+--// Random public server + Auto Hop + Diagnostics
 
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
-local TweenService = game:GetService("TweenService")
 
-local LocalPlayer = Players.LocalPlayer
+local Player = Players.LocalPlayer
 local PlaceId = game.PlaceId
+
 local running = true
-local autoEnabled = false
+local autoHop = false
 local busy = false
+local teleportPending = false
 
--- Interfaz
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "ByChinnitoServerFinder"
-ScreenGui.ResetOnSpawn = false
+--// GUI
+local Gui = Instance.new("ScreenGui")
+Gui.Name = "ByChinnitoFinder"
+Gui.ResetOnSpawn = false
 
-local success, guiError = pcall(function()
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-end)
+local Main = Instance.new("Frame")
+Main.Parent = Gui
+Main.Size = UDim2.fromOffset(310, 270)
+Main.Position = UDim2.new(0.5, -155, 0.5, -135)
+Main.BackgroundColor3 = Color3.fromRGB(15, 12, 25)
+Main.BorderSizePixel = 0
+Main.Active = true
+Main.Draggable = true
 
-if not success then
-    warn("ByChinnito GUI: " .. tostring(guiError))
-    return
-end
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
 
-local MainFrame = Instance.new("Frame")
-MainFrame.Parent = ScreenGui
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 12, 25)
-MainFrame.BorderSizePixel = 0
-MainFrame.Position = UDim2.new(0.5, -130, 0.5, -120)
-MainFrame.Size = UDim2.new(0, 260, 0, 240)
-MainFrame.Active = true
-MainFrame.Draggable = true
-
-Instance.new("UICorner", MainFrame).CornerRadius =
-    UDim.new(0, 12)
-
-local stroke = Instance.new("UIStroke", MainFrame)
-stroke.Color = Color3.fromRGB(60, 50, 90)
-stroke.Thickness = 1.5
+local Border = Instance.new("UIStroke", Main)
+Border.Color = Color3.fromRGB(0, 200, 255)
+Border.Thickness = 1.2
 
 local function makeLabel(text, position, size, color, textSize)
     local label = Instance.new("TextLabel")
-    label.Parent = MainFrame
+    label.Parent = Main
     label.Position = position
     label.Size = size
     label.BackgroundTransparency = 1
@@ -53,250 +44,347 @@ local function makeLabel(text, position, size, color, textSize)
     label.Text = text
     label.TextColor3 = color
     label.TextSize = textSize
+    label.TextWrapped = true
     label.TextXAlignment = Enum.TextXAlignment.Left
     return label
 end
 
 makeLabel(
     "PRIVATE SERVER FINDER",
-    UDim2.fromOffset(15, 12),
-    UDim2.fromOffset(205, 18),
-    Color3.fromRGB(0, 230, 255),
-    13
+    UDim2.fromOffset(14, 10),
+    UDim2.fromOffset(250, 22),
+    Color3.fromRGB(0, 225, 255),
+    14
 )
 
 makeLabel(
     "by ByChinnito",
-    UDim2.fromOffset(15, 30),
-    UDim2.fromOffset(180, 14),
-    Color3.fromRGB(120, 120, 150),
+    UDim2.fromOffset(14, 32),
+    UDim2.fromOffset(200, 16),
+    Color3.fromRGB(150, 145, 175),
     10
 )
 
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Parent = MainFrame
-CloseBtn.Position = UDim2.new(1, -32, 0, 12)
-CloseBtn.Size = UDim2.fromOffset(20, 20)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(35, 30, 50)
-CloseBtn.Text = "X"
-CloseBtn.TextColor3 = Color3.new(1, 1, 1)
-CloseBtn.TextSize = 11
-Instance.new("UICorner", CloseBtn).CornerRadius =
-    UDim.new(0, 6)
+local Close = Instance.new("TextButton")
+Close.Parent = Main
+Close.Position = UDim2.new(1, -34, 0, 10)
+Close.Size = UDim2.fromOffset(22, 22)
+Close.BackgroundColor3 = Color3.fromRGB(45, 30, 55)
+Close.Text = "X"
+Close.TextColor3 = Color3.new(1, 1, 1)
+Close.Font = Enum.Font.GothamBold
+Close.TextSize = 12
 
-local StatusCard = Instance.new("Frame")
-StatusCard.Parent = MainFrame
-StatusCard.Position = UDim2.fromOffset(15, 52)
-StatusCard.Size = UDim2.new(1, -30, 0, 50)
-StatusCard.BackgroundColor3 = Color3.fromRGB(24, 20, 40)
-StatusCard.BorderSizePixel = 0
-Instance.new("UICorner", StatusCard).CornerRadius =
-    UDim.new(0, 8)
+Instance.new("UICorner", Close).CornerRadius = UDim.new(0, 5)
 
-local NowLabel = Instance.new("TextLabel")
-NowLabel.Parent = StatusCard
-NowLabel.Position = UDim2.fromOffset(10, 6)
-NowLabel.Size = UDim2.new(1, -20, 0, 18)
-NowLabel.BackgroundTransparency = 1
-NowLabel.Font = Enum.Font.GothamBold
-NowLabel.Text = "Current Server"
-NowLabel.TextColor3 = Color3.fromRGB(0, 230, 255)
-NowLabel.TextSize = 12
-NowLabel.TextXAlignment = Enum.TextXAlignment.Left
+local StatusBox = Instance.new("Frame")
+StatusBox.Parent = Main
+StatusBox.Position = UDim2.fromOffset(12, 58)
+StatusBox.Size = UDim2.new(1, -24, 0, 70)
+StatusBox.BackgroundColor3 = Color3.fromRGB(25, 21, 40)
+StatusBox.BorderSizePixel = 0
 
-local StatusLabel = Instance.new("TextLabel")
-StatusLabel.Parent = StatusCard
-StatusLabel.Position = UDim2.fromOffset(10, 24)
-StatusLabel.Size = UDim2.new(1, -20, 0, 22)
-StatusLabel.BackgroundTransparency = 1
-StatusLabel.Font = Enum.Font.GothamMedium
-StatusLabel.Text = "Ready to search"
-StatusLabel.TextColor3 = Color3.fromRGB(160, 160, 180)
-StatusLabel.TextSize = 10
-StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-StatusLabel.TextWrapped = true
+Instance.new("UICorner", StatusBox).CornerRadius = UDim.new(0, 8)
+
+local Status = Instance.new("TextLabel")
+Status.Parent = StatusBox
+Status.Position = UDim2.fromOffset(10, 5)
+Status.Size = UDim2.new(1, -20, 1, -10)
+Status.BackgroundTransparency = 1
+Status.Font = Enum.Font.GothamMedium
+Status.Text = "Ready to search"
+Status.TextColor3 = Color3.fromRGB(180, 180, 200)
+Status.TextSize = 11
+Status.TextWrapped = true
+Status.TextXAlignment = Enum.TextXAlignment.Left
+
+local function setStatus(message, color)
+    if Status and Status.Parent then
+        Status.Text = tostring(message)
+        Status.TextColor3 = color or Color3.fromRGB(180, 180, 200)
+    end
+
+    print("[ByChinnito] " .. tostring(message))
+end
 
 local function makeButton(text, y, color)
     local button = Instance.new("TextButton")
-    button.Parent = MainFrame
-    button.Position = UDim2.fromOffset(15, y)
-    button.Size = UDim2.new(1, -30, 0, 34)
+    button.Parent = Main
+    button.Position = UDim2.fromOffset(12, y)
+    button.Size = UDim2.new(1, -24, 0, 34)
     button.BackgroundColor3 = color
     button.BorderSizePixel = 0
     button.Font = Enum.Font.GothamBold
     button.Text = text
     button.TextColor3 = Color3.new(1, 1, 1)
     button.TextSize = 11
-    Instance.new("UICorner", button).CornerRadius =
-        UDim.new(0, 8)
+
+    Instance.new("UICorner", button).CornerRadius = UDim.new(0, 7)
     return button
 end
 
-local JoinBtn = makeButton(
+local HopButton = makeButton(
     "HOP SERVER NOW",
-    110,
-    Color3.fromRGB(0, 140, 255)
+    140,
+    Color3.fromRGB(0, 125, 235)
 )
 
-local AutoBtn = makeButton(
-    "AUTO HOP: DISABLED",
-    150,
-    Color3.fromRGB(35, 30, 50)
+local AutoButton = makeButton(
+    "AUTO HOP: OFF",
+    181,
+    Color3.fromRGB(45, 35, 60)
 )
 
-local function setStatus(message, color)
-    if not ScreenGui.Parent then return end
-    StatusLabel.Text = message
-    StatusLabel.TextColor3 = color or
-        Color3.fromRGB(160, 160, 180)
+--// Auto Hop control
+local function stopAutoHop()
+    autoHop = false
+    AutoButton.Text = "AUTO HOP: OFF"
+    AutoButton.BackgroundColor3 = Color3.fromRGB(45, 35, 60)
 end
 
-local function getRandomServer()
+--// Search up to 10 pages
+local function findServer()
     local baseUrl =
         "https://games.roblox.com/v1/games/"
-        .. PlaceId
-        .. "/servers/Public?sortOrder=Asc&limit=100"
+        .. tostring(PlaceId)
+        .. "/servers/Public?sortOrder=Asc&limit=50"
 
     local cursor = nil
     local candidates = {}
     local seen = {}
-    local currentId = tostring(game.JobId)
+    local maxPages = 10
 
-    -- Revisa hasta 5 páginas por búsqueda.
-    for page = 1, 5 do
-        if not running then return nil end
-
-        local url = baseUrl
-        if cursor then
-            url = url .. "&cursor=" ..
-                HttpService:UrlEncode(cursor)
+    for page = 1, maxPages do
+        if not running then
+            return nil, "Script stopped"
         end
 
-        local ok, raw = pcall(function()
+        local url = baseUrl
+
+        if cursor then
+            url = baseUrl .. "&cursor="
+                .. HttpService:UrlEncode(cursor)
+        end
+
+        setStatus(
+            "Searching page " .. page .. "/" .. maxPages
+            .. " | Found: " .. #candidates
+        )
+
+        local requestOK, response = pcall(function()
             return game:HttpGet(url)
         end)
 
-        if not ok or not raw then
-            warn("ByChinnito: fallo al consultar la API")
+        if not requestOK then
+            warn("[ByChinnito] HTTP error: " .. tostring(response))
             break
         end
 
-        local decoded, data = pcall(function()
-            return HttpService:JSONDecode(raw)
+        local decodeOK, data = pcall(function()
+            return HttpService:JSONDecode(response)
         end)
 
-        if not decoded or type(data) ~= "table"
-            or type(data.data) ~= "table" then
-            warn("ByChinnito: respuesta API inválida")
+        if not decodeOK or type(data) ~= "table" then
+            warn("[ByChinnito] Invalid JSON response")
+            break
+        end
+
+        if type(data.errors) == "table" and #data.errors > 0 then
+            warn("[ByChinnito] API ERROR DETAILS: " .. tostring(response))
+            break
+        end
+
+        if type(data.data) ~= "table" then
+            warn("[ByChinnito] Unexpected API response: " .. tostring(response))
             break
         end
 
         for _, server in ipairs(data.data) do
-            if server.id
-                and tostring(server.id) ~= currentId
-                and (not server.maxPlayers
-                    or not server.playing
-                    or server.playing < server.maxPlayers)
-                and not seen[tostring(server.id)] then
+            local id = server.id
+            local playing = tonumber(server.playing) or 0
+            local maximum = tonumber(server.maxPlayers) or 0
 
-                seen[tostring(server.id)] = true
-                table.insert(candidates, tostring(server.id))
+            if id
+                and tostring(id) ~= tostring(game.JobId)
+                and not seen[tostring(id)]
+                and maximum > playing then
+
+                seen[tostring(id)] = true
+
+                table.insert(candidates, {
+                    id = tostring(id),
+                    playing = playing,
+                    maximum = maximum
+                })
             end
         end
 
+        print(
+            "[ByChinnito] Page " .. page
+            .. ": " .. #data.data
+            .. " servers; available: " .. #candidates
+        )
+
         cursor = data.nextPageCursor
-        if not cursor then break end
-        task.wait(0.25)
+
+        if not cursor or cursor == "" then
+            break
+        end
+
+        task.wait(0.3)
     end
+
+    print(
+        "[ByChinnito] Total available candidates: "
+        .. #candidates
+    )
 
     if #candidates == 0 then
-        return nil
+        return nil, "No available servers found; check the console"
     end
 
-    return candidates[math.random(1, #candidates)]
+    local selected = candidates[math.random(1, #candidates)]
+
+    setStatus(
+        "Selected server: "
+        .. selected.playing .. "/" .. selected.maximum
+        .. " players",
+        Color3.fromRGB(0, 225, 180)
+    )
+
+    return selected.id
 end
 
+--// Teleport failure diagnostics
+TeleportService.TeleportInitFailed:Connect(
+    function(who, result, message)
+        if who == Player then
+            teleportPending = false
+            busy = false
+
+            setStatus(
+                "Teleport failed: " .. tostring(result)
+                .. " - " .. tostring(message),
+                Color3.fromRGB(255, 80, 80)
+            )
+
+            stopAutoHop()
+        end
+    end
+)
+
+--// Hop action
 local function hopServer()
-    if busy then return end
+    if busy or not running then
+        return
+    end
+
     busy = true
+    teleportPending = false
 
-    setStatus("Searching public servers...",
-        Color3.fromRGB(255, 180, 50))
+    setStatus("Searching public servers...")
 
-    local ok, serverId = pcall(getRandomServer)
+    local searchOK, serverId, searchError = pcall(findServer)
 
-    if not ok or not serverId then
-        setStatus("No server found. Try again.",
-            Color3.fromRGB(255, 80, 80))
+    if not searchOK then
+        setStatus(
+            "Search exception: " .. tostring(serverId),
+            Color3.fromRGB(255, 80, 80)
+        )
+
+        stopAutoHop()
         busy = false
         return
     end
 
-    setStatus("Joining another server...",
-        Color3.fromRGB(0, 230, 255))
+    if not serverId then
+        setStatus(
+            "Search failed: " .. tostring(searchError or "Unknown error"),
+            Color3.fromRGB(255, 170, 50)
+        )
 
-    local teleported, err = pcall(function()
+        warn("[ByChinnito] Search failed: " .. tostring(searchError))
+
+        stopAutoHop()
+        busy = false
+        return
+    end
+
+    setStatus("Server found. Requesting teleport...")
+
+    local teleportOK, teleportError = pcall(function()
         TeleportService:TeleportToPlaceInstance(
             PlaceId,
             serverId,
-            LocalPlayer
+            Player
         )
     end)
 
-    if not teleported then
-        warn("ByChinnito teleport error: " .. tostring(err))
-        setStatus("Teleport failed. Try again.",
-            Color3.fromRGB(255, 80, 80))
+    if not teleportOK then
+        setStatus(
+            "Teleport call error: " .. tostring(teleportError),
+            Color3.fromRGB(255, 80, 80)
+        )
+
+        stopAutoHop()
         busy = false
         return
     end
 
-    -- Evita solicitudes repetidas mientras cambia de servidor.
-    task.delay(8, function()
-        busy = false
+    teleportPending = true
+    setStatus("Teleport requested; waiting for Roblox...")
+
+    task.delay(15, function()
+        if running and teleportPending then
+            teleportPending = false
+            busy = false
+
+            setStatus(
+                "No confirmation from Roblox. Retry manually.",
+                Color3.fromRGB(255, 180, 50)
+            )
+
+            stopAutoHop()
+        end
     end)
 end
 
-JoinBtn.Activated:Connect(function()
+--// Buttons
+HopButton.Activated:Connect(function()
     task.spawn(hopServer)
 end)
 
-AutoBtn.Activated:Connect(function()
-    autoEnabled = not autoEnabled
+AutoButton.Activated:Connect(function()
+    if autoHop then
+        stopAutoHop()
+        setStatus("Automatic hopping stopped")
+        return
+    end
 
-    if autoEnabled then
-        AutoBtn.Text = "AUTO HOP: ENABLED"
-        AutoBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 100)
-        setStatus("Auto hop enabled",
-            Color3.fromRGB(0, 230, 150))
+    autoHop = true
+    AutoButton.Text = "AUTO HOP: ON"
+    AutoButton.BackgroundColor3 = Color3.fromRGB(0, 145, 100)
 
-        task.spawn(function()
-            while running and autoEnabled do
-                if not busy then
-                    hopServer()
-                end
-                task.wait(12)
+    setStatus("Automatic hopping enabled")
+
+    task.spawn(function()
+        while running and autoHop do
+            if not busy then
+                hopServer()
             end
-        end)
-    else
-        AutoBtn.Text = "AUTO HOP: DISABLED"
-        AutoBtn.BackgroundColor3 = Color3.fromRGB(35, 30, 50)
-        setStatus("Auto hop stopped")
-    end
+
+            task.wait(15)
+        end
+    end)
 end)
 
-CloseBtn.Activated:Connect(function()
+Close.Activated:Connect(function()
     running = false
-    autoEnabled = false
-    ScreenGui:Destroy()
+    stopAutoHop()
+    teleportPending = false
+    Gui:Destroy()
 end)
 
-task.spawn(function()
-    while running and ScreenGui.Parent do
-        NowLabel.Text = "Current Server: "
-            .. #Players:GetPlayers() .. " player(s)"
-        task.wait(1)
-    end
-end)
+Gui.Parent = Player:WaitForChild("PlayerGui")
 
-print("ByChinnito Server Finder loaded")
+print("[ByChinnito] Private Server Finder loaded successfully")
